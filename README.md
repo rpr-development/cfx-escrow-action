@@ -17,7 +17,7 @@ A GitHub composite action that uploads a FiveM resource to the [Cfx.re Portal](h
 
 ```yaml
 - name: Upload to Cfx.re Portal
-  uses: rpr-development/cfx-escrow-action@main
+  uses: rpr-development/cfx-escrow-action@v1
   with:
     resource_dir: ${{ github.workspace }}/dist
     github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -31,7 +31,7 @@ A GitHub composite action that uploads a FiveM resource to the [Cfx.re Portal](h
 
 ```yaml
 - name: Upload to Cfx.re Portal
-  uses: rpr-development/cfx-escrow-action@main
+  uses: rpr-development/cfx-escrow-action@v1
   with:
     resource_dir: ${{ github.workspace }}
     github_token: ${{ secrets.GITHUB_TOKEN }}
