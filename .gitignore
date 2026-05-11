@@ -1,0 +1,4 @@
+node_modules/
+auth-state.json
+passkey-credential.json
+bun.lockb
