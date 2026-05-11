@@ -22,7 +22,6 @@ A GitHub composite action that uploads a FiveM resource to the [Cfx.re Portal](h
     resource_dir: ${{ github.workspace }}/dist
     github_token: ${{ secrets.GITHUB_TOKEN }}
     cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
-    cfx_auth_state: ${{ secrets.CFX_AUTH_STATE }}
     cfx_asset_id: ${{ vars.CFX_ASSET_ID }}
     github_pat: ${{ secrets.GITHUB_PAT }}
 ```
@@ -36,7 +35,6 @@ A GitHub composite action that uploads a FiveM resource to the [Cfx.re Portal](h
     resource_dir: ${{ github.workspace }}
     github_token: ${{ secrets.GITHUB_TOKEN }}
     cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
-    cfx_auth_state: ${{ secrets.CFX_AUTH_STATE }}
     cfx_asset_id: ${{ vars.CFX_ASSET_ID }}
     github_pat: ${{ secrets.GITHUB_PAT }}
 ```
@@ -50,16 +48,15 @@ A GitHub composite action that uploads a FiveM resource to the [Cfx.re Portal](h
 | `resource_dir` | ✅ | Absolute path to the resource directory to upload |
 | `github_token` | ✅ | GitHub token for creating releases (`secrets.GITHUB_TOKEN`) |
 | `cfx_passkey_credential` | ✅ | Contents of `passkey-credential.json` |
-| `cfx_auth_state` | ✅ | Contents of `auth-state.json` |
 | `repo_name` | | Asset name on the Portal (defaults to repository name) |
 | `cfx_asset_id` | | Known Portal asset ID — auto-discovered if empty (`vars.CFX_ASSET_ID`) |
-| `github_pat` | | PAT with `actions:write` scope — used to save `CFX_ASSET_ID` and rotate `CFX_AUTH_STATE` |
+| `github_pat` | | PAT with `actions:write` scope — used to save `CFX_ASSET_ID` as a repository variable |
 
 ## First-time setup
 
 ### 1. Register a passkey
 
-Run `setup-passkey.ts` locally once to register a virtual WebAuthn passkey and save your session:
+Run `setup-passkey.ts` locally once to register a virtual WebAuthn passkey:
 
 ```bash
 cd path/to/cfx-escrow-action
@@ -70,24 +67,21 @@ bun run setup-passkey
 This opens a browser window:
 1. Log in to the [Cfx.re Forum](https://forum.cfx.re/login)
 2. Press Enter in the terminal
-3. Click **Add passkey** on the security page (`/u/me/preferences/security`)
+3. Click **Add passkey** on the security page
 4. Give it a name (e.g. `cfx-deploy`) and confirm
 5. Press Enter in the terminal
 
-Two files are generated: `passkey-credential.json` and `auth-state.json`.
+One file is generated: `passkey-credential.json`.
 
-### 2. Add GitHub Secrets
+### 2. Add GitHub Secret
 
 ```bash
 gh secret set CFX_PASSKEY_CREDENTIAL --body "$(cat passkey-credential.json)" --repo your-org/your-repo
-gh secret set CFX_AUTH_STATE         --body "$(cat auth-state.json)"         --repo your-org/your-repo
 ```
 
-### 3. Optional: PAT for variable caching & session rotation
+### 3. Optional: PAT for asset ID caching
 
-Create a [Personal Access Token](https://github.com/settings/tokens) with `repo` and `actions:write` scope and add it as `GITHUB_PAT`. This enables:
-- Automatic saving of `CFX_ASSET_ID` as a repository variable (speeds up subsequent runs)
-- Rotation of `CFX_AUTH_STATE` after each run (keeps the session fresh)
+Create a [Personal Access Token](https://github.com/settings/tokens) with `repo` and `actions:write` scope and add it as `GITHUB_PAT`. This enables automatic saving of `CFX_ASSET_ID` as a repository variable, which speeds up subsequent runs by skipping the asset discovery step.
 
 ## Optional: upload-config.json
 

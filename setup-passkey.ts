@@ -1,7 +1,7 @@
 /**
  * setup-passkey.ts  —  run: bun run setup-passkey
  *
- * Run this locally once to register a passkey and generate the GitHub Secrets
+ * Run this locally once to register a passkey and generate the GitHub Secret
  * required by the deploy action.
  *
  * Based on https://github.com/ilovehugetits/9am-build — credits to the original authors.
@@ -12,7 +12,6 @@
  *   3. Log in to the Cfx.re Forum
  *   4. Click 'Add passkey' on the security page
  *   5. Add passkey-credential.json as secret CFX_PASSKEY_CREDENTIAL
- *   6. Add auth-state.json as secret CFX_AUTH_STATE
  */
 import puppeteer from "puppeteer";
 import { writeFile } from "fs/promises";
@@ -21,10 +20,9 @@ import { createInterface } from "readline";
 
 import { setupVirtualAuthenticator, getRegisteredCredentials } from "./src/passkey.ts";
 
-const FORUM_LOGIN_URL     = "https://forum.cfx.re/login";
-const FORUM_SESSION_URL   = "https://forum.cfx.re/session/current.json";
-const CREDENTIAL_FILE    = path.resolve(import.meta.dirname, "passkey-credential.json");
-const AUTH_STATE_FILE    = path.resolve(import.meta.dirname, "auth-state.json");
+const FORUM_LOGIN_URL   = "https://forum.cfx.re/login";
+const FORUM_SESSION_URL = "https://forum.cfx.re/session/current.json";
+const CREDENTIAL_FILE   = path.resolve(import.meta.dirname, "passkey-credential.json");
 
 function waitForEnter(prompt: string): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -94,19 +92,11 @@ async function main() {
   await writeFile(CREDENTIAL_FILE, JSON.stringify(credential, null, 2), "utf-8");
   console.log(`\nPasskey saved → ${CREDENTIAL_FILE}`);
 
-  const cookies = await browser.defaultBrowserContext().cookies();
-  await writeFile(AUTH_STATE_FILE, JSON.stringify(cookies, null, 2), "utf-8");
-  console.log(`Session saved → ${AUTH_STATE_FILE}`);
-
   await browser.close();
 
   console.log("\n=== Done! ===");
-  console.log("Add the contents of these files as GitHub Secrets:");
-  console.log("  CFX_PASSKEY_CREDENTIAL  ←  passkey-credential.json");
-  console.log("  CFX_AUTH_STATE          ←  auth-state.json\n");
-  console.log("GitHub CLI commands:");
-  console.log("  gh secret set CFX_PASSKEY_CREDENTIAL --body \"$(cat passkey-credential.json)\"");
-  console.log("  gh secret set CFX_AUTH_STATE         --body \"$(cat auth-state.json)\"\n");
+  console.log("Add the contents of passkey-credential.json as a GitHub Secret:");
+  console.log("  gh secret set CFX_PASSKEY_CREDENTIAL --body \"$(cat passkey-credential.json)\"\n");
 }
 
 main().catch((e) => {

@@ -12,9 +12,6 @@ inputs:
   cfx_passkey_credential:
     description: 'Contents of passkey-credential.json (secret CFX_PASSKEY_CREDENTIAL)'
     required: true
-  cfx_auth_state:
-    description: 'Contents of auth-state.json (secret CFX_AUTH_STATE)'
-    required: true
   cfx_asset_id:
     description: 'Known Cfx.re Portal asset ID — auto-discovered if empty'
     required: false
@@ -23,7 +20,7 @@ inputs:
     description: 'GitHub token for creating releases (secrets.GITHUB_TOKEN)'
     required: true
   github_pat:
-    description: 'GitHub PAT for saving CFX_ASSET_ID variable and rotating auth-state (optional, requires actions:write scope)'
+    description: 'GitHub PAT for saving CFX_ASSET_ID variable (optional, requires actions:write scope)'
     required: false
     default: ''
 
@@ -50,10 +47,8 @@ runs:
       shell: bash
       env:
         CFX_PASSKEY: ${{ inputs.cfx_passkey_credential }}
-        CFX_AUTH: ${{ inputs.cfx_auth_state }}
       run: |
         printf '%s' "$CFX_PASSKEY" > "${{ github.action_path }}/passkey-credential.json"
-        printf '%s' "$CFX_AUTH"    > "${{ github.action_path }}/auth-state.json"
 
     - name: Deploy to portal + create release
       shell: bash
@@ -68,17 +63,3 @@ runs:
         CFX_ASSET_ID:      ${{ inputs.cfx_asset_id }}
       run: bun run cfx-deploy.ts
 
-    - name: Rotate auth state (optional)
-      if: always()
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github_pat }}
-      run: |
-        if [ -f "${{ github.action_path }}/auth-state.json" ] && [ -n "${GH_TOKEN:-}" ]; then
-          gh secret set CFX_AUTH_STATE \
-            --body "$(cat "${{ github.action_path }}/auth-state.json")" \
-            --repo "${{ github.repository }}"
-          echo "Auth state rotated."
-        else
-          echo "No github_pat provided — skipping auth state rotation."
-        fi

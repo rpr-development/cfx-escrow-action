@@ -1,28 +1,11 @@
 /**
  * Based on https://github.com/ilovehugetits/9am-build — credits to the original authors.
- * Modified: removed chalk dependency.
+ * Modified: removed chalk dependency, removed cookie session cache.
  */
 import puppeteer, { type Browser } from "puppeteer";
-import { access, readFile, writeFile } from "fs/promises";
-import path from "path";
 import { setupVirtualAuthenticator, loadCredential } from "./passkey.js";
 
-const AUTH_STATE_FILE = path.resolve(import.meta.dirname, "../auth-state.json");
 const PORTAL_URL = "https://portal.cfx.re/assets/created-assets";
-
-async function authStateExists(): Promise<boolean> {
-  try {
-    await access(AUTH_STATE_FILE);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function saveCookies(browser: Browser): Promise<void> {
-  const cookies = await browser.defaultBrowserContext().cookies();
-  await writeFile(AUTH_STATE_FILE, JSON.stringify(cookies, null, 2), "utf-8");
-}
 
 async function waitForPortalLoaded(page: import("puppeteer").Page, timeout = 30_000): Promise<void> {
   const deadline = Date.now() + timeout;
@@ -84,7 +67,6 @@ async function loginWithPasskey(browser: Browser): Promise<boolean> {
       }),
     ]);
     console.log(`[auth] after passkey auth: ${page.url()}`);
-    // Expected: forum.cfx.re/ (root) — forum is now logged in, portal is not yet
 
     // Step 3: go back to portal → wait for login button (Next.js does client-side redirect
     //         to /login, URL after goto still shows assets/created-assets) → click sign in again
@@ -105,7 +87,6 @@ async function loginWithPasskey(browser: Browser): Promise<boolean> {
     await waitForPortalLoaded(page, 30_000);
 
     console.log("Passkey login successful!\n");
-    await saveCookies(browser);
     return true;
   } catch (err) {
     const url = page.url();
@@ -129,28 +110,6 @@ const launchOptions = {
 };
 
 export async function getAuthenticatedContext(): Promise<Browser> {
-  const hasState = await authStateExists();
-
-  if (hasState) {
-    const browser = await puppeteer.launch(launchOptions);
-    const page = (await browser.pages())[0];
-
-    const raw = await readFile(AUTH_STATE_FILE, "utf-8");
-    const cookies = JSON.parse(raw);
-    await browser.defaultBrowserContext().setCookie(...cookies);
-
-    await page.goto(PORTAL_URL, { waitUntil: "load" });
-
-    try {
-      await waitForPortalLoaded(page, 10_000);
-      console.log("Existing session is valid.\n");
-      return browser;
-    } catch {
-      console.log("Session expired, re-login required.\n");
-      await browser.close();
-    }
-  }
-
   const browser = await puppeteer.launch(launchOptions);
 
   if (await loginWithPasskey(browser)) {
