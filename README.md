@@ -13,6 +13,8 @@ A GitHub composite action that uploads a FiveM resource to the [Cfx.re Portal](h
 
 ## Usage
 
+**With a build step** (e.g. JS obfuscation outputs to `dist/`):
+
 ```yaml
 - name: Upload to Cfx.re Portal
   uses: rpr-development/cfx-escrow-action@main
@@ -24,6 +26,22 @@ A GitHub composite action that uploads a FiveM resource to the [Cfx.re Portal](h
     cfx_asset_id: ${{ vars.CFX_ASSET_ID }}
     github_pat: ${{ secrets.GITHUB_PAT }}
 ```
+
+**Lua-only resource** (fxmanifest.lua is in the repo root):
+
+```yaml
+- name: Upload to Cfx.re Portal
+  uses: rpr-development/cfx-escrow-action@main
+  with:
+    resource_dir: ${{ github.workspace }}
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
+    cfx_auth_state: ${{ secrets.CFX_AUTH_STATE }}
+    cfx_asset_id: ${{ vars.CFX_ASSET_ID }}
+    github_pat: ${{ secrets.GITHUB_PAT }}
+```
+
+> `resource_dir` must point to the folder that contains `fxmanifest.lua`. For repos where the manifest lives at the root, use `${{ github.workspace }}`. For repos that compile or copy files into a subdirectory first, point to that subdirectory instead (e.g. `${{ github.workspace }}/dist`).
 
 ## Inputs
 
