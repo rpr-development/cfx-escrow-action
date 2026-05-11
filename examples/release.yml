@@ -1,0 +1,38 @@
+# .github/workflows/release.yml
+#
+# Drop-and-place workflow for a standard FiveM resource.
+# Requirements:
+#   - fxmanifest.lua is in the root of the repo
+#   - Secret CFX_PASSKEY_CREDENTIAL is set (see setup-passkey in the action repo)
+#   - Variable CFX_ASSET_ID is created automatically after the first run
+#
+# Optional:
+#   - Secret GITHUB_PAT (PAT with actions:write scope) for automatically saving CFX_ASSET_ID
+
+name: Release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Create GitHub Release
+  actions: write   # Save CFX_ASSET_ID variable
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload to Cfx.re Portal
+        uses: rpr-development/cfx-escrow-action@v1
+        with:
+          resource_dir: ${{ github.workspace }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
+          cfx_asset_id: ${{ vars.CFX_ASSET_ID }}
+          github_pat: ${{ secrets.GITHUB_PAT }}

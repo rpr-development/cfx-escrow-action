@@ -95,6 +95,10 @@ Place an `upload-config.json` in the resource root to exclude additional files f
 
 If not present, defaults to excluding `.gitignore`, `.github/**` and `.claude/**`. The Portal reads `escrow_ignore {}` from `fxmanifest.lua` directly.
 
+## Examples
+
+A ready-to-use workflow for a standard Lua resource (no build step) is available in [`examples/release.yml`](examples/release.yml). Copy it to `.github/workflows/release.yml` in your resource repo.
+
 ## Credits
 
 Authentication logic based on [9am-build](https://github.com/ilovehugetits/9am-build).
