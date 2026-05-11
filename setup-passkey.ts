@@ -21,8 +21,8 @@ import { createInterface } from "readline";
 
 import { setupVirtualAuthenticator, getRegisteredCredentials } from "./src/passkey.ts";
 
-const FORUM_LOGIN_URL    = "https://forum.cfx.re/login";
-const FORUM_SECURITY_URL = "https://forum.cfx.re/u/me/preferences/security";
+const FORUM_LOGIN_URL     = "https://forum.cfx.re/login";
+const FORUM_SESSION_URL   = "https://forum.cfx.re/session/current.json";
 const CREDENTIAL_FILE    = path.resolve(import.meta.dirname, "passkey-credential.json");
 const AUTH_STATE_FILE    = path.resolve(import.meta.dirname, "auth-state.json");
 
@@ -52,12 +52,26 @@ async function main() {
 
   await waitForEnter("\nPress Enter once you are logged in...");
 
+  // Resolve the actual username via the Discourse session API.
+  // /u/me/ is a shortcut that doesn't reliably work in Puppeteer.
+  const sessionRes = await page.goto(FORUM_SESSION_URL, { waitUntil: "load" });
+  const sessionJson = await sessionRes!.json() as { current_user?: { username: string } };
+  const username = sessionJson.current_user?.username;
+  if (!username) {
+    console.error("\nCould not determine logged-in username. Are you logged in?");
+    await browser.close();
+    process.exit(1);
+  }
+  console.log(`Logged in as: ${username}`);
+
+  const securityUrl = `https://forum.cfx.re/u/${username}/preferences/security`;
+
   // Activate virtual authenticator BEFORE the security page,
   // otherwise the browser won't intercept the WebAuthn challenge.
   const authenticatorId = await setupVirtualAuthenticator(page);
   console.log("Virtual authenticator active.");
 
-  await page.goto(FORUM_SECURITY_URL, { waitUntil: "networkidle2" });
+  await page.goto(securityUrl, { waitUntil: "networkidle2" });
   await new Promise((r) => setTimeout(r, 2000));
 
   console.log("\n────────────────────────────────────────");
