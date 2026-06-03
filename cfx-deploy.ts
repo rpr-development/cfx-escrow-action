@@ -40,6 +40,38 @@ const CFX_VERSION_OVERRIDE = (process.env.CFX_VERSION || "").replace(/^v(?=\d)/i
 const CFX_CHANGELOG        = process.env.CFX_CHANGELOG || "Automated release";
 const CFX_RELEASE_CANDIDATE = process.env.CFX_RELEASE_CANDIDATE === "true";
 
+function buildChangelog(): string {
+  // Explicit input (e.g. GitHub Release body) takes priority
+  const explicit = process.env.CFX_CHANGELOG ?? "";
+  if (explicit && explicit !== "Automated release") return explicit;
+
+  // Auto-generate from git commits since the last tag (or last 10 commits as fallback)
+  try {
+    const lastTag = execFileSync("git", ["describe", "--tags", "--abbrev=0", "HEAD^"], {
+      cwd: RESOURCE_DIR,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    }).trim();
+
+    return execFileSync(
+      "git", ["log", `${lastTag}..HEAD`, "--pretty=format:- %s", "--no-merges"],
+      { cwd: RESOURCE_DIR, encoding: "utf-8" }
+    ).trim() || `Automated release (${GITHUB_SHA})`;
+  } catch {
+    // No previous tag — take the last 10 commits
+    try {
+      return execFileSync(
+        "git", ["log", "-10", "--pretty=format:- %s", "--no-merges"],
+        { cwd: RESOURCE_DIR, encoding: "utf-8" }
+      ).trim() || `Automated release (${GITHUB_SHA})`;
+    } catch {
+      return `Automated release (${GITHUB_SHA})`;
+    }
+  }
+}
+
+const CFX_CHANGELOG = buildChangelog();
+
 function readFxManifestVersion(): string {
   const manifestPath = path.join(RESOURCE_DIR, "fxmanifest.lua");
   if (!existsSync(manifestPath)) return "";

@@ -9,10 +9,10 @@
 # Optional:
 #   - Secret GITHUB_PAT (PAT with actions:write scope) for automatically saving CFX_ASSET_ID
 #
-# Trigger: create a GitHub Release (draft or pre-release supported).
-# - version      → release tag (e.g. v1.2.3 → 1.2.3)
-# - changelog    → release body (description)
-# - release_candidate → true when the release is marked as pre-release
+# Triggers:
+#   push          → deploys automatically, changelog from git commits
+#   release       → version/changelog/release_candidate from the GitHub Release
+#   workflow_dispatch → manual run with optional custom changelog
 
 name: Release
 
@@ -21,6 +21,22 @@ on:
     branches: [main, master]
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      changelog:
+        description: 'Changelog / release notes (leave empty to use git commits)'
+        required: false
+        default: ''
+      version:
+        description: 'Version override (leave empty to read from fxmanifest.lua)'
+        required: false
+        default: ''
+      release_candidate:
+        description: 'Mark as Release Candidate / Beta'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 # One run per branch/tag at a time.
 # For push: cancels the previous run when a new push arrives.
@@ -49,5 +65,9 @@ jobs:
           cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
           cfx_asset_id: ${{ vars.CFX_ASSET_ID }}
           github_pat: ${{ secrets.GITHUB_PAT }}
-          # version, changelog and release_candidate are filled in automatically
-          # from the GitHub Release — no need to pass them here.
+          # workflow_dispatch: use the manually entered values
+          # release: filled in automatically from the GitHub Release
+          # push: version from fxmanifest.lua, changelog from git commits
+          changelog: ${{ inputs.changelog }}
+          version: ${{ inputs.version }}
+          release_candidate: ${{ inputs.release_candidate }}
