@@ -37,7 +37,6 @@ const GITHUB_SHA   = (process.env.GITHUB_SHA ?? "unknown").slice(0, 7);
 const KNOWN_ASSET_ID       = process.env.CFX_ASSET_ID ? parseInt(process.env.CFX_ASSET_ID) : NaN;
 // Strip leading 'v' so tags like 'v1.2.3' become '1.2.3'
 const CFX_VERSION_OVERRIDE = (process.env.CFX_VERSION || "").replace(/^v(?=\d)/i, "");
-const CFX_CHANGELOG        = process.env.CFX_CHANGELOG || "Automated release";
 const CFX_RELEASE_CANDIDATE = process.env.CFX_RELEASE_CANDIDATE === "true";
 
 function buildChangelog(): string {
