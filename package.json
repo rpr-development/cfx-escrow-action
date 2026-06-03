@@ -9,5 +9,6 @@
     "archiver": "^7.0.1",
     "glob": "^11.0.1",
     "puppeteer": "^24.37.5"
-  }
+  },
+  "trustedDependencies": ["puppeteer"]
 }
