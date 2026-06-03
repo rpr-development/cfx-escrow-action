@@ -17,8 +17,17 @@
 name: Release
 
 on:
+  push:
+    branches: [main, master]
   release:
     types: [published]
+
+# One run per branch/tag at a time.
+# For push: cancels the previous run when a new push arrives.
+# For release: a release tag is unique, so no cancellation occurs.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write  # Create GitHub Release

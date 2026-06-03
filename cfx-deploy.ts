@@ -56,6 +56,9 @@ const OUTPUT_DIR  = path.join(RESOURCE_DIR, ".build");
 const API_BASE    = "https://portal-api.cfx.re/v1";
 const CHUNK_SIZE  = 7 * 1024 * 1024; // 7 MB per chunk
 
+// Resolved once at startup — priority: input override → fxmanifest.lua → short SHA
+const RESOLVED_VERSION = CFX_VERSION_OVERRIDE || readFxManifestVersion() || GITHUB_SHA;
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 interface Config { exclude: string[] }
@@ -221,7 +224,6 @@ async function uploadChunks(
 
 function baseUploadBody(totalSize: number) {
   const chunkCount = Math.ceil(totalSize / CHUNK_SIZE);
-  const version = CFX_VERSION_OVERRIDE || readFxManifestVersion() || GITHUB_SHA;
   return {
     name: REPO_NAME,
     chunk_count: chunkCount,
@@ -229,7 +231,7 @@ function baseUploadBody(totalSize: number) {
     total_size: totalSize,
     original_file_name: `${REPO_NAME}.zip`,
     release_candidate: CFX_RELEASE_CANDIDATE,
-    version,
+    version: RESOLVED_VERSION,
   };
 }
 
@@ -279,29 +281,39 @@ async function ensureAssetAndUpload(cookie: string, zipPath: string): Promise<nu
 async function waitAndDownload(cookie: string, assetId: number): Promise<string> {
   console.log("[portal] Waiting for escrow processing...");
 
-  for (let attempt = 0; attempt < 36; attempt++) {
-    for (let page = 1; page <= 20; page++) {
-      const data = await apiGet(cookie, `/me/assets?page=${page}&search=&sort=asset.id&direction=desc`);
-      const asset = (data.items ?? []).find((a: any) => a.id === assetId);
+  let lastState = "";
+  let attempt = 0;
 
-      if (asset) {
-        if (asset.state === "active") {
-          const version = asset.versions?.[0];
-          const pack = version?.packs?.[0];
-          if (version && pack) {
-            return downloadEscrowed(cookie, assetId, version.id, pack.id);
-          }
-        }
-        break; // Asset found but not active yet, stop paginating
-      }
-      if (page >= (data.page_count ?? 1)) break;
+  // Poll indefinitely — rely on GitHub Actions concurrency cancellation (SIGTERM)
+  // to stop a stale run when a newer push arrives. A 60-minute hard cap exists
+  // only as a safety net against runaway jobs.
+  while (attempt < 360) {
+    const asset = await apiGet(cookie, `/assets/${assetId}`);
+    const state: string = asset.state ?? "unknown";
+
+    if (state !== lastState) {
+      console.log(`[portal] Asset state: ${state}`);
+      lastState = state;
     }
 
-    console.log(`[portal] Not active yet, waiting 5s... (${attempt + 1}/36)`);
-    await sleep(5000);
+    if (state === "active") {
+      const version = asset.versions?.[0];
+      const pack = version?.packs?.[0];
+      if (version && pack) {
+        return downloadEscrowed(cookie, assetId, version.id, pack.id);
+      }
+    }
+
+    if (state === "error") {
+      throw new Error(`Escrow processing failed: asset ${assetId} entered error state.`);
+    }
+
+    attempt++;
+    console.log(`[portal] Waiting 10s... (${attempt}/360)`);
+    await sleep(10_000);
   }
 
-  throw new Error("Timeout: asset did not become 'active' within 3 minutes.");
+  throw new Error("Safety-net timeout: asset did not become 'active' within 60 minutes.");
 }
 
 async function downloadEscrowed(
@@ -354,21 +366,34 @@ async function setGitHubVariable(name: string, value: string): Promise<void> {
 }
 
 async function createGitHubRelease(zipPath: string): Promise<void> {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const tag = `v${date}-${GITHUB_SHA}`;
-  const title = `${REPO_NAME} ${date} (${GITHUB_SHA})`;
+  const existingTag = process.env.GITHUB_REF_NAME ?? "";
+  const isReleaseTrigger = process.env.GITHUB_EVENT_NAME === "release";
 
-  execFileSync(
-    "gh",
-    [
-      "release", "create", tag, zipPath,
-      "--title", title,
-      "--notes", `Automated release from commit \`${GITHUB_SHA}\`.\n\nDownload the zip and place its contents in your FiveM resources folder.`,
-      "--repo", GITHUB_REPOSITORY,
-    ],
-    { env: { ...process.env, GH_TOKEN: GITHUB_TOKEN }, stdio: "inherit" }
-  );
-  console.log(`[gh] Release created: ${tag}`);
+  if (isReleaseTrigger && existingTag) {
+    // A GitHub Release already exists — just upload the escrowed zip to it
+    execFileSync(
+      "gh",
+      ["release", "upload", existingTag, zipPath, "--clobber", "--repo", GITHUB_REPOSITORY],
+      { env: { ...process.env, GH_TOKEN: GITHUB_TOKEN }, stdio: "inherit" }
+    );
+    console.log(`[gh] Escrowed zip attached to existing release ${existingTag}`);
+  } else {
+    // Push / workflow_dispatch — create a new release
+    const tag = `v${RESOLVED_VERSION}`;
+    const title = `${REPO_NAME} v${RESOLVED_VERSION}`;
+
+    execFileSync(
+      "gh",
+      [
+        "release", "create", tag, zipPath,
+        "--title", title,
+        "--notes", `Automated release from commit \`${GITHUB_SHA}\`.\n\nDownload the zip and place its contents in your FiveM resources folder.`,
+        "--repo", GITHUB_REPOSITORY,
+      ],
+      { env: { ...process.env, GH_TOKEN: GITHUB_TOKEN }, stdio: "inherit" }
+    );
+    console.log(`[gh] Release created: ${tag}`);
+  }
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
