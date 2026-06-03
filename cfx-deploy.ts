@@ -285,9 +285,9 @@ async function waitAndDownload(cookie: string, assetId: number): Promise<string>
   let attempt = 0;
 
   // Poll indefinitely — rely on GitHub Actions concurrency cancellation (SIGTERM)
-  // to stop a stale run when a newer push arrives. A 60-minute hard cap exists
-  // only as a safety net against runaway jobs.
-  while (attempt < 360) {
+  // to stop a stale run when a newer push arrives. A 3-hour hard cap exists
+  // only as a safety net (CFX documentation states processing can take up to 2 hours).
+  while (attempt < 1080) {
     const asset = await apiGet(cookie, `/assets/${assetId}`);
     const state: string = asset.state ?? "unknown";
 
@@ -309,11 +309,11 @@ async function waitAndDownload(cookie: string, assetId: number): Promise<string>
     }
 
     attempt++;
-    console.log(`[portal] Waiting 10s... (${attempt}/360)`);
+    console.log(`[portal] Waiting 10s... (${attempt}/1080)`);
     await sleep(10_000);
   }
 
-  throw new Error("Safety-net timeout: asset did not become 'active' within 60 minutes.");
+  throw new Error("Safety-net timeout: asset did not become 'active' within 3 hours.");
 }
 
 async function downloadEscrowed(
