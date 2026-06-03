@@ -55,7 +55,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Upload to Cfx.re Portal
         uses: rpr-development/cfx-escrow-action@v1
