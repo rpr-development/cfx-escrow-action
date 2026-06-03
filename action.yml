@@ -54,12 +54,13 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       env:
-        RESOURCE_DIR:      ${{ inputs.resource_dir }}
-        REPO_NAME:         ${{ inputs.repo_name || github.event.repository.name }}
-        GITHUB_TOKEN:      ${{ inputs.github_token }}
-        GITHUB_PAT:        ${{ inputs.github_pat }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
-        GITHUB_SHA:        ${{ github.sha }}
-        CFX_ASSET_ID:      ${{ inputs.cfx_asset_id }}
+        RESOURCE_DIR:             ${{ inputs.resource_dir }}
+        REPO_NAME:                ${{ inputs.repo_name || github.event.repository.name }}
+        GITHUB_TOKEN:             ${{ inputs.github_token }}
+        GITHUB_PAT:               ${{ inputs.github_pat }}
+        GITHUB_REPOSITORY:        ${{ github.repository }}
+        GITHUB_SHA:               ${{ github.sha }}
+        CFX_ASSET_ID:             ${{ inputs.cfx_asset_id }}
+        PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
       run: bun run cfx-deploy.ts
 
