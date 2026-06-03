@@ -8,13 +8,17 @@
 #
 # Optional:
 #   - Secret GITHUB_PAT (PAT with actions:write scope) for automatically saving CFX_ASSET_ID
+#
+# Trigger: create a GitHub Release (draft or pre-release supported).
+# - version      → release tag (e.g. v1.2.3 → 1.2.3)
+# - changelog    → release body (description)
+# - release_candidate → true when the release is marked as pre-release
 
 name: Release
 
 on:
-  push:
-    branches: [master]
-  workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: write  # Create GitHub Release
@@ -36,3 +40,5 @@ jobs:
           cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
           cfx_asset_id: ${{ vars.CFX_ASSET_ID }}
           github_pat: ${{ secrets.GITHUB_PAT }}
+          # version, changelog and release_candidate are filled in automatically
+          # from the GitHub Release — no need to pass them here.

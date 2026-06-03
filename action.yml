@@ -23,6 +23,18 @@ inputs:
     description: 'GitHub PAT for saving CFX_ASSET_ID variable (optional, requires actions:write scope)'
     required: false
     default: ''
+  version:
+    description: 'Version string sent to the Cfx.re Portal (defaults to the release tag, then fxmanifest.lua, then the short commit SHA)'
+    required: false
+    default: ${{ github.event.release.tag_name }}
+  changelog:
+    description: 'Release notes / changelog text sent to the Cfx.re Portal (defaults to the release body)'
+    required: false
+    default: ${{ github.event.release.body || 'Automated release' }}
+  release_candidate:
+    description: 'Mark this upload as a Release Candidate / Beta instead of a Full Release (defaults to the pre-release flag of the GitHub Release)'
+    required: false
+    default: ${{ github.event.release.prerelease || 'false' }}
 
 runs:
   using: 'composite'
@@ -61,6 +73,9 @@ runs:
         GITHUB_REPOSITORY:        ${{ github.repository }}
         GITHUB_SHA:               ${{ github.sha }}
         CFX_ASSET_ID:             ${{ inputs.cfx_asset_id }}
+        CFX_VERSION:              ${{ inputs.version }}
+        CFX_CHANGELOG:            ${{ inputs.changelog }}
+        CFX_RELEASE_CANDIDATE:    ${{ inputs.release_candidate }}
         PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
       run: bun run cfx-deploy.ts
 

@@ -34,7 +34,23 @@ const REPO_NAME    = process.env.REPO_NAME ?? path.basename(RESOURCE_DIR);
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN!;
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY!;
 const GITHUB_SHA   = (process.env.GITHUB_SHA ?? "unknown").slice(0, 7);
-const KNOWN_ASSET_ID = process.env.CFX_ASSET_ID ? parseInt(process.env.CFX_ASSET_ID) : NaN;
+const KNOWN_ASSET_ID       = process.env.CFX_ASSET_ID ? parseInt(process.env.CFX_ASSET_ID) : NaN;
+// Strip leading 'v' so tags like 'v1.2.3' become '1.2.3'
+const CFX_VERSION_OVERRIDE = (process.env.CFX_VERSION || "").replace(/^v(?=\d)/i, "");
+const CFX_CHANGELOG        = process.env.CFX_CHANGELOG || "Automated release";
+const CFX_RELEASE_CANDIDATE = process.env.CFX_RELEASE_CANDIDATE === "true";
+
+function readFxManifestVersion(): string {
+  const manifestPath = path.join(RESOURCE_DIR, "fxmanifest.lua");
+  if (!existsSync(manifestPath)) return "";
+  try {
+    const content = require("fs").readFileSync(manifestPath, "utf-8");
+    const m = content.match(/^\s*version\s+['"]([^'"]+)['"]/m);
+    return m ? m[1] : "";
+  } catch {
+    return "";
+  }
+}
 
 const OUTPUT_DIR  = path.join(RESOURCE_DIR, ".build");
 const API_BASE    = "https://portal-api.cfx.re/v1";
@@ -203,15 +219,22 @@ async function uploadChunks(
   console.log("[upload] Upload complete.");
 }
 
-function uploadBody(totalSize: number) {
+function baseUploadBody(totalSize: number) {
   const chunkCount = Math.ceil(totalSize / CHUNK_SIZE);
+  const version = CFX_VERSION_OVERRIDE || readFxManifestVersion() || GITHUB_SHA;
   return {
     name: REPO_NAME,
     chunk_count: chunkCount,
     chunk_size: CHUNK_SIZE,
     total_size: totalSize,
     original_file_name: `${REPO_NAME}.zip`,
+    release_candidate: CFX_RELEASE_CANDIDATE,
+    version,
   };
+}
+
+function reUploadBody(totalSize: number) {
+  return { ...baseUploadBody(totalSize), changelog: CFX_CHANGELOG };
 }
 
 // ─── Create or re-upload + wait for active ────────────────────────────────────
@@ -220,14 +243,13 @@ async function ensureAssetAndUpload(cookie: string, zipPath: string): Promise<nu
   const stat = await (await openFile(zipPath, "r")).stat();
   const totalSize = stat.size;
   const chunkCount = Math.ceil(totalSize / CHUNK_SIZE);
-  const body = uploadBody(totalSize);
 
   let assetId: number;
   let versionId: number;
 
   if (!isNaN(KNOWN_ASSET_ID)) {
     console.log(`[portal] Re-uploading to asset ${KNOWN_ASSET_ID}...`);
-    const r = await apiPost(cookie, `/assets/${KNOWN_ASSET_ID}/re-upload`, body);
+    const r = await apiPost(cookie, `/assets/${KNOWN_ASSET_ID}/re-upload`, reUploadBody(totalSize));
     assetId = r.asset_id;
     versionId = r.version_id;
   } else {
@@ -235,12 +257,12 @@ async function ensureAssetAndUpload(cookie: string, zipPath: string): Promise<nu
     if (existingId) {
       console.log(`[portal] Asset '${REPO_NAME}' found → ID ${existingId}`);
       await setGitHubVariable("CFX_ASSET_ID", String(existingId));
-      const r = await apiPost(cookie, `/assets/${existingId}/re-upload`, body);
+      const r = await apiPost(cookie, `/assets/${existingId}/re-upload`, reUploadBody(totalSize));
       assetId = r.asset_id;
       versionId = r.version_id;
     } else {
       console.log(`[portal] Asset '${REPO_NAME}' not found — creating...`);
-      const r = await apiPost(cookie, "/me/assets", body);
+      const r = await apiPost(cookie, "/me/assets", baseUploadBody(totalSize));
       assetId = r.asset_id;
       versionId = r.version_id;
       await setGitHubVariable("CFX_ASSET_ID", String(assetId));
