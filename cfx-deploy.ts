@@ -272,7 +272,7 @@ function reUploadBody(totalSize: number) {
 
 // ─── Create or re-upload + wait for active ────────────────────────────────────
 
-async function ensureAssetAndUpload(cookie: string, zipPath: string): Promise<number> {
+async function ensureAssetAndUpload(cookie: string, zipPath: string): Promise<{ assetId: number; versionId: number }> {
   const stat = await (await openFile(zipPath, "r")).stat();
   const totalSize = stat.size;
   const chunkCount = Math.ceil(totalSize / CHUNK_SIZE);
@@ -282,7 +282,7 @@ async function ensureAssetAndUpload(cookie: string, zipPath: string): Promise<nu
 
   if (!isNaN(KNOWN_ASSET_ID)) {
     console.log(`[portal] Re-uploading to asset ${KNOWN_ASSET_ID}...`);
-    const r = await apiPost(cookie, `/assets/${KNOWN_ASSET_ID}/re-upload`, reUploadBody(totalSize));
+    const r = await reUpload(cookie, KNOWN_ASSET_ID, reUploadBody(totalSize));
     assetId = r.asset_id;
     versionId = r.version_id;
   } else {
@@ -290,7 +290,7 @@ async function ensureAssetAndUpload(cookie: string, zipPath: string): Promise<nu
     if (existingId) {
       console.log(`[portal] Asset '${REPO_NAME}' found → ID ${existingId}`);
       await setGitHubVariable("CFX_ASSET_ID", String(existingId));
-      const r = await apiPost(cookie, `/assets/${existingId}/re-upload`, reUploadBody(totalSize));
+      const r = await reUpload(cookie, existingId, reUploadBody(totalSize));
       assetId = r.asset_id;
       versionId = r.version_id;
     } else {
@@ -304,12 +304,12 @@ async function ensureAssetAndUpload(cookie: string, zipPath: string): Promise<nu
   }
 
   await uploadChunks(cookie, assetId, versionId, zipPath, totalSize, chunkCount);
-  return assetId;
+  return { assetId, versionId };
 }
 
 // ─── Wait for portal processing + download ───────────────────────────────────
 
-async function waitAndDownload(cookie: string, assetId: number): Promise<string> {
+async function waitAndDownload(cookie: string, assetId: number, targetVersionId: number): Promise<string> {
   console.log("[portal] Waiting for escrow processing...");
 
   let lastState = "";
@@ -320,23 +320,25 @@ async function waitAndDownload(cookie: string, assetId: number): Promise<string>
   // only as a safety net (CFX documentation states processing can take up to 2 hours).
   while (attempt < 1080) {
     const asset = await apiGet(cookie, `/assets/${assetId}`);
-    const state: string = asset.state ?? "unknown";
+    const version = (asset.versions ?? []).find((v: any) => v.id === targetVersionId);
+    const state: string = version?.state ?? asset.state ?? "unknown";
 
     if (state !== lastState) {
-      console.log(`[portal] Asset state: ${state}`);
+      console.log(`[portal] Version state: ${state}`);
       lastState = state;
     }
 
     if (state === "active") {
-      const version = asset.versions?.[0];
       const pack = version?.packs?.[0];
       if (version && pack) {
         return downloadEscrowed(cookie, assetId, version.id, pack.id);
       }
     }
 
-    if (state === "error") {
-      throw new Error(`Escrow processing failed: asset ${assetId} entered error state.`);
+    if (state === "error" || state === "invalid") {
+      const errors = version?.errors;
+      const detail = errors ? "\n" + JSON.stringify(errors, null, 2) : "";
+      throw new Error(`Escrow processing failed (state: ${state}) for version ${targetVersionId}:${detail}`);
     }
 
     attempt++;
@@ -370,7 +372,7 @@ async function downloadEscrowed(
   return destPath;
 }
 
-// ─── Delete asset ─────────────────────────────────────────────────────────────
+// ─── Delete asset / version ───────────────────────────────────────────────────
 
 async function deleteAsset(cookie: string, assetId: number): Promise<void> {
   const resp = await fetch(`${API_BASE}/assets/${assetId}`, {
@@ -379,6 +381,50 @@ async function deleteAsset(cookie: string, assetId: number): Promise<void> {
   });
   if (!resp.ok) throw new Error(`DELETE /assets/${assetId} → ${resp.status} ${await resp.text()}`);
   console.log(`[portal] Asset ${assetId} deleted.`);
+}
+
+async function deleteVersion(cookie: string, assetId: number, versionId: number): Promise<void> {
+  const resp = await fetch(`${API_BASE}/assets/${assetId}/versions/${versionId}`, {
+    method: "DELETE",
+    headers: API_HEADERS(cookie),
+  });
+  if (!resp.ok) throw new Error(`DELETE /assets/${assetId}/versions/${versionId} → ${resp.status} ${await resp.text()}`);
+  console.log(`[portal] Version ${versionId} deleted.`);
+}
+
+async function reUpload(cookie: string, assetId: number, body: object): Promise<any> {
+  const resp = await fetch(`${API_BASE}/assets/${assetId}/re-upload`, {
+    method: "POST",
+    headers: { ...API_HEADERS(cookie), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (resp.status === 409) {
+    const text = await resp.text();
+    let errorCode: string | undefined;
+    try { errorCode = JSON.parse(text).error_code; } catch {}
+
+    const asset = await apiGet(cookie, `/assets/${assetId}`);
+    const versions: any[] = asset.versions ?? [];
+
+    if (errorCode === "DUPLICATE_VERSION") {
+      const versionNumber = (body as any).version;
+      const duplicate = versions.find((v: any) => v.version === versionNumber);
+      if (!duplicate) throw new Error(`409 DUPLICATE_VERSION for '${versionNumber}' but version not found in list`);
+      console.log(`[portal] Duplicate version '${versionNumber}' (id ${duplicate.id}) — deleting and retrying...`);
+      await deleteVersion(cookie, assetId, duplicate.id);
+    } else {
+      const sorted = versions.slice().sort((a: any, b: any) => a.id - b.id);
+      if (sorted.length === 0) throw new Error(`409 max versions but no versions found to delete`);
+      console.log(`[portal] Max versions reached — deleting oldest version ${sorted[0].id} and retrying...`);
+      await deleteVersion(cookie, assetId, sorted[0].id);
+    }
+
+    return apiPost(cookie, `/assets/${assetId}/re-upload`, body);
+  }
+
+  if (!resp.ok) throw new Error(`POST /assets/${assetId}/re-upload → ${resp.status} ${await resp.text()}`);
+  return resp.json();
 }
 
 // ─── GitHub variable + Release ────────────────────────────────────────────────
@@ -446,10 +492,10 @@ async function main() {
   const cookie = await getPortalCookies();
   console.log(`[auth] ${cookie.split(";").length} cookies obtained`);
 
-  const assetId = await ensureAssetAndUpload(cookie, zipPath);
+  const { assetId, versionId } = await ensureAssetAndUpload(cookie, zipPath);
 
   console.log("[download] Waiting for processing + fetching escrowed zip...");
-  const escrowed = await waitAndDownload(cookie, assetId);
+  const escrowed = await waitAndDownload(cookie, assetId, versionId);
 
   console.log("[release] Creating GitHub Release...");
   await createGitHubRelease(escrowed);
