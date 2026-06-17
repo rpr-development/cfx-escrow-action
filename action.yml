@@ -79,3 +79,8 @@ runs:
         PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
       run: bun run cfx-deploy.ts
 
+    - name: Clean up credentials
+      if: always()
+      shell: bash
+      run: rm -f "${{ github.action_path }}/passkey-credential.json"
+

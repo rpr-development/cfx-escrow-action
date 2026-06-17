@@ -2,7 +2,7 @@
  * Based on https://github.com/ilovehugetits/9am-build — credits to the original authors.
  */
 import type { Page } from "puppeteer";
-import { access, readFile, writeFile } from "fs/promises";
+import { access, readFile, writeFile, unlink } from "fs/promises";
 import path from "path";
 
 const CREDENTIAL_FILE = path.resolve(import.meta.dirname, "../passkey-credential.json");
@@ -68,6 +68,7 @@ export async function loadCredential(): Promise<SavedCredential | null> {
   try {
     await access(CREDENTIAL_FILE);
     const raw = await readFile(CREDENTIAL_FILE, "utf-8");
+    await unlink(CREDENTIAL_FILE);
     return JSON.parse(raw);
   } catch {
     return null;
