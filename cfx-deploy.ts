@@ -460,13 +460,15 @@ async function createGitHubRelease(zipPath: string): Promise<void> {
     const title = `${REPO_NAME} v${RESOLVED_VERSION}`;
 
     // Build changelog from git log since the previous tag (or all commits if none)
+    // cwd must be GITHUB_WORKSPACE — the action runs from its own directory which has no .git
+    const gitCwd = process.env.GITHUB_WORKSPACE ?? process.cwd();
     let changelog = "";
     try {
-      const prevTag = execFileSync("git", ["describe", "--tags", "--abbrev=0", "HEAD^"], { encoding: "utf8" }).trim();
-      changelog = execFileSync("git", ["log", `${prevTag}..HEAD`, "--pretty=format:- %s"], { encoding: "utf8" }).trim();
+      const prevTag = execFileSync("git", ["describe", "--tags", "--abbrev=0", "HEAD^"], { encoding: "utf8", cwd: gitCwd }).trim();
+      changelog = execFileSync("git", ["log", `${prevTag}..HEAD`, "--pretty=format:- %s"], { encoding: "utf8", cwd: gitCwd }).trim();
     } catch {
       // No previous tag — include recent commits
-      changelog = execFileSync("git", ["log", "--pretty=format:- %s", "-20"], { encoding: "utf8" }).trim();
+      changelog = execFileSync("git", ["log", "--pretty=format:- %s", "-20"], { encoding: "utf8", cwd: gitCwd }).trim();
     }
 
     const notes = [
