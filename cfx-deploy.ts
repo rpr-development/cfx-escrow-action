@@ -366,7 +366,7 @@ async function downloadEscrowed(
   if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
 
   const buffer = Buffer.from(await resp.arrayBuffer());
-  const destPath = path.join(OUTPUT_DIR, `${REPO_NAME}-escrowed.zip`);
+  const destPath = path.join(OUTPUT_DIR, `${REPO_NAME}-${RESOLVED_VERSION}-escrowed.zip`);
   await writeFile(destPath, buffer);
   console.log(`[portal] Escrowed zip saved: ${destPath}`);
   return destPath;
