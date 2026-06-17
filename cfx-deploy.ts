@@ -459,13 +459,32 @@ async function createGitHubRelease(zipPath: string): Promise<void> {
     const tag = `v${RESOLVED_VERSION}`;
     const title = `${REPO_NAME} v${RESOLVED_VERSION}`;
 
+    // Build changelog from git log since the previous tag (or all commits if none)
+    let changelog = "";
+    try {
+      const prevTag = execFileSync("git", ["describe", "--tags", "--abbrev=0", "HEAD^"], { encoding: "utf8" }).trim();
+      changelog = execFileSync("git", ["log", `${prevTag}..HEAD`, "--pretty=format:- %s"], { encoding: "utf8" }).trim();
+    } catch {
+      // No previous tag — include recent commits
+      changelog = execFileSync("git", ["log", "--pretty=format:- %s", "-20"], { encoding: "utf8" }).trim();
+    }
+
+    const notes = [
+      changelog,
+      "",
+      `Full commit: \`${GITHUB_SHA}\``,
+      "",
+      "Download the zip and place its contents in your FiveM resources folder.",
+    ].join("\n");
+
     execFileSync(
       "gh",
       [
         "release", "create", tag, zipPath,
         "--title", title,
-        "--notes", `Automated release from commit \`${GITHUB_SHA}\`.\n\nDownload the zip and place its contents in your FiveM resources folder.`,
+        "--notes", notes,
         "--repo", GITHUB_REPOSITORY,
+        "--clobber",
       ],
       { env: { ...process.env, GH_TOKEN: GITHUB_TOKEN }, stdio: "inherit" }
     );
