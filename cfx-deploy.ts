@@ -44,24 +44,26 @@ function buildChangelog(): string {
   const explicit = process.env.CFX_CHANGELOG ?? "";
   if (explicit && explicit !== "Automated release") return explicit;
 
-  // Auto-generate from git commits since the last tag (or last 10 commits as fallback)
+  // Auto-generate from git commits since the last tag (or last 10 commits as fallback).
+  // Must run from GITHUB_WORKSPACE — RESOURCE_DIR (dist/) has no .git.
+  const gitCwd = process.env.GITHUB_WORKSPACE ?? process.cwd();
   try {
     const lastTag = execFileSync("git", ["describe", "--tags", "--abbrev=0", "HEAD^"], {
-      cwd: RESOURCE_DIR,
+      cwd: gitCwd,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "ignore"],
     }).trim();
 
     return execFileSync(
       "git", ["log", `${lastTag}..HEAD`, "--pretty=format:- %s", "--no-merges"],
-      { cwd: RESOURCE_DIR, encoding: "utf-8" }
+      { cwd: gitCwd, encoding: "utf-8" }
     ).trim() || `Automated release (${GITHUB_SHA})`;
   } catch {
     // No previous tag — take the last 10 commits
     try {
       return execFileSync(
         "git", ["log", "-10", "--pretty=format:- %s", "--no-merges"],
-        { cwd: RESOURCE_DIR, encoding: "utf-8" }
+        { cwd: gitCwd, encoding: "utf-8" }
       ).trim() || `Automated release (${GITHUB_SHA})`;
     } catch {
       return `Automated release (${GITHUB_SHA})`;
@@ -459,38 +461,25 @@ async function createGitHubRelease(zipPath: string): Promise<void> {
     const tag = `v${RESOLVED_VERSION}`;
     const title = `${REPO_NAME} v${RESOLVED_VERSION}`;
 
-    // Build changelog from git log since the previous tag (or all commits if none)
-    // cwd must be GITHUB_WORKSPACE — the action runs from its own directory which has no .git
-    const gitCwd = process.env.GITHUB_WORKSPACE ?? process.cwd();
-    let changelog = "";
-    try {
-      const prevTag = execFileSync("git", ["describe", "--tags", "--abbrev=0", "HEAD^"], { encoding: "utf8", cwd: gitCwd }).trim();
-      changelog = execFileSync("git", ["log", `${prevTag}..HEAD`, "--pretty=format:- %s"], { encoding: "utf8", cwd: gitCwd }).trim();
-    } catch {
-      // No previous tag — include recent commits
-      changelog = execFileSync("git", ["log", "--pretty=format:- %s", "-20"], { encoding: "utf8", cwd: gitCwd }).trim();
-    }
-
     const notes = [
-      changelog,
+      CFX_CHANGELOG,
       "",
       `Full commit: \`${GITHUB_SHA}\``,
       "",
       "Download the zip and place its contents in your FiveM resources folder.",
     ].join("\n");
 
-    execFileSync(
-      "gh",
-      [
-        "release", "create", tag, zipPath,
-        "--title", title,
-        "--notes", notes,
-        "--repo", GITHUB_REPOSITORY,
-        "--clobber",
-      ],
-      { env: { ...process.env, GH_TOKEN: GITHUB_TOKEN }, stdio: "inherit" }
-    );
-    console.log(`[gh] Release created: ${tag}`);
+    const ghEnv = { env: { ...process.env, GH_TOKEN: GITHUB_TOKEN }, stdio: "inherit" as const };
+    try {
+      execFileSync("gh", ["release", "create", tag, zipPath, "--title", title, "--notes", notes, "--repo", GITHUB_REPOSITORY], ghEnv);
+      console.log(`[gh] Release created: ${tag}`);
+    } catch {
+      // Release already exists — update notes and overwrite the asset
+      console.log(`[gh] Release ${tag} already exists — updating...`);
+      execFileSync("gh", ["release", "edit", tag, "--title", title, "--notes", notes, "--repo", GITHUB_REPOSITORY], ghEnv);
+      execFileSync("gh", ["release", "upload", tag, zipPath, "--clobber", "--repo", GITHUB_REPOSITORY], ghEnv);
+      console.log(`[gh] Release updated: ${tag}`);
+    }
   }
 }
 
