@@ -1,0 +1,39 @@
+# .github/workflows/session-keepalive.yml
+#
+# Keeps the persisted Cfx forum session (secret CFX_SESSION_COOKIE) alive and
+# verified, so deploys never start with a dead session. When the session died,
+# the configured fallbacks (passkey → email link → IMAP recovery) re-establish
+# it unattended during this run instead of during a release.
+#
+# Note: GitHub disables scheduled workflows after ~60 days without repository
+# activity — a repo that also deploys regularly is unaffected.
+
+name: Cfx session keep-alive
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'   # weekly, Monday 04:00 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cfx-session
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Refresh Cfx forum session
+        uses: rpr-development/cfx-escrow-action@v1
+        with:
+          mode: keepalive
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_pat: ${{ secrets.GITHUB_PAT }}
+          cfx_session_cookie: ${{ secrets.CFX_SESSION_COOKIE }}
+          # Optional: self-healing when the session died
+          cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
+          cfx_totp_secret: ${{ secrets.CFX_TOTP_SECRET }}
+          cfx_imap_credentials: ${{ secrets.CFX_IMAP_CREDENTIALS }}

@@ -65,6 +65,10 @@ jobs:
           cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
           cfx_asset_id: ${{ vars.CFX_ASSET_ID }}
           github_pat: ${{ secrets.GITHUB_PAT }}
+          # Session persistence + automatic new-device/location recovery (see action README)
+          cfx_session_cookie: ${{ secrets.CFX_SESSION_COOKIE }}
+          cfx_totp_secret: ${{ secrets.CFX_TOTP_SECRET }}
+          cfx_imap_credentials: ${{ secrets.CFX_IMAP_CREDENTIALS }}
           # workflow_dispatch: use the manually entered values
           # release: filled in automatically from the GitHub Release
           # push: version from fxmanifest.lua, changelog from git commits

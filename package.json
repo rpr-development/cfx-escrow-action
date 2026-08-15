@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "setup-passkey": "bun run setup-passkey.ts"
+    "setup-passkey": "bun run setup-passkey.ts",
+    "setup-session": "bun run setup-session.ts"
   },
   "dependencies": {
     "archiver": "^7.0.1",
     "glob": "^11.0.1",
+    "imapflow": "^1.7.1",
     "puppeteer": "^24.37.5"
   }
 }

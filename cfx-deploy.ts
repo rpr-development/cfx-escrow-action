@@ -25,7 +25,8 @@ import { createWriteStream } from "fs";
 import { glob } from "glob";
 import { execFileSync } from "child_process";
 
-import { getAuthenticatedContext } from "./src/auth.ts";
+import { authenticateFromEnv } from "./src/session.ts";
+import { setGitHubVariable } from "./src/github.ts";
 
 // ─── Environment ──────────────────────────────────────────────────────────────
 
@@ -152,7 +153,7 @@ function createZip(sourceDir: string, outputPath: string): Promise<void> {
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 async function getPortalCookies(): Promise<string> {
-  const browser = await getAuthenticatedContext();
+  const browser = await authenticateFromEnv();
 
   try {
     // Ensure portal is loaded so portal-api cookies are set
@@ -429,20 +430,7 @@ async function reUpload(cookie: string, assetId: number, body: object): Promise<
   return resp.json();
 }
 
-// ─── GitHub variable + Release ────────────────────────────────────────────────
-
-async function setGitHubVariable(name: string, value: string): Promise<void> {
-  // GITHUB_TOKEN lacks permissions for variables — a PAT with actions:write is required
-  const token = process.env.GITHUB_PAT || GITHUB_TOKEN;
-  try {
-    execFileSync("gh", ["variable", "set", name, "--body", value, "--repo", GITHUB_REPOSITORY], {
-      env: { ...process.env, GH_TOKEN: token },
-    });
-    console.log(`[gh] Variable ${name}=${value} saved`);
-  } catch (e) {
-    console.warn(`[gh] Could not save variable ${name} (PAT with actions:write scope required): ${e}`);
-  }
-}
+// ─── GitHub Release ───────────────────────────────────────────────────────────
 
 async function createGitHubRelease(zipPath: string): Promise<void> {
   const existingTag = process.env.GITHUB_REF_NAME ?? "";

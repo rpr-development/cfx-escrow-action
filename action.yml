@@ -2,25 +2,47 @@ name: 'Cfx.re Escrow Upload'
 description: 'Uploads a FiveM resource to the Cfx.re Portal for escrow, then attaches the escrowed zip to a GitHub Release.'
 
 inputs:
+  mode:
+    description: "'deploy' (default) builds, uploads and releases; 'keepalive' only refreshes and persists the forum session — meant for a scheduled workflow"
+    required: false
+    default: 'deploy'
   resource_dir:
-    description: 'Absolute path to the resource directory (e.g. github.workspace/dist)'
-    required: true
+    description: 'Absolute path to the resource directory (e.g. github.workspace/dist) — required for mode: deploy'
+    required: false
+    default: ''
   repo_name:
     description: 'Asset name on the Cfx.re Portal (defaults to the repository name)'
     required: false
     default: ''
   cfx_passkey_credential:
-    description: 'Contents of passkey-credential.json (secret CFX_PASSKEY_CREDENTIAL)'
-    required: true
+    description: 'Contents of passkey-credential.json (secret CFX_PASSKEY_CREDENTIAL). Optional when relying on a persisted session, but needed as fallback login and as trigger for the automatic new-device recovery.'
+    required: false
+    default: ''
   cfx_asset_id:
     description: 'Known Cfx.re Portal asset ID — auto-discovered if empty'
+    required: false
+    default: ''
+  cfx_email_login_url:
+    description: 'One-time "Log in via link" URL from the Cfx forum email, used when the forum blocks login from a new device/location. Also read from repository variable CFX_EMAIL_LOGIN_URL if empty.'
+    required: false
+    default: ''
+  cfx_totp_secret:
+    description: 'Base32 TOTP secret of the account''s authenticator — required to complete the email login link when 2FA is enabled (secret CFX_TOTP_SECRET)'
+    required: false
+    default: ''
+  cfx_session_cookie:
+    description: 'Persisted forum session cookie from a previous run (secret CFX_SESSION_COOKIE) — skips login entirely; saved back automatically when github_pat is provided'
+    required: false
+    default: ''
+  cfx_imap_credentials:
+    description: 'JSON {"host","user","password","port","waitMinutes"} for a mailbox receiving the "Log in via link" mail — the account''s own inbox or a dedicated (auto-)forward address (secret CFX_IMAP_CREDENTIALS). Enables automatic recovery from the new-device/location block; the run polls the mailbox for waitMinutes (default 3).'
     required: false
     default: ''
   github_token:
     description: 'GitHub token for creating releases (secrets.GITHUB_TOKEN)'
     required: true
   github_pat:
-    description: 'GitHub PAT for saving CFX_ASSET_ID variable (optional, requires actions:write scope)'
+    description: 'GitHub PAT for saving the CFX_ASSET_ID variable and the CFX_SESSION_COOKIE secret (optional, requires repo + actions:write scope)'
     required: false
     default: ''
   version:
@@ -62,7 +84,7 @@ runs:
       run: |
         printf '%s' "$CFX_PASSKEY" > "${{ github.action_path }}/passkey-credential.json"
 
-    - name: Deploy to portal + create release
+    - name: ${{ inputs.mode == 'keepalive' && 'Refresh forum session' || 'Deploy to portal + create release' }}
       shell: bash
       working-directory: ${{ github.action_path }}
       env:
@@ -73,11 +95,15 @@ runs:
         GITHUB_REPOSITORY:        ${{ github.repository }}
         GITHUB_SHA:               ${{ github.sha }}
         CFX_ASSET_ID:             ${{ inputs.cfx_asset_id }}
+        CFX_EMAIL_LOGIN_URL:      ${{ inputs.cfx_email_login_url }}
+        CFX_TOTP_SECRET:          ${{ inputs.cfx_totp_secret }}
+        CFX_SESSION_COOKIE:       ${{ inputs.cfx_session_cookie }}
+        CFX_IMAP_CREDENTIALS:     ${{ inputs.cfx_imap_credentials }}
         CFX_VERSION:              ${{ inputs.version }}
         CFX_CHANGELOG:            ${{ inputs.changelog }}
         CFX_RELEASE_CANDIDATE:    ${{ inputs.release_candidate }}
         PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
-      run: bun run cfx-deploy.ts
+      run: bun run ${{ inputs.mode == 'keepalive' && 'keep-alive.ts' || 'cfx-deploy.ts' }}
 
     - name: Clean up credentials
       if: always()
