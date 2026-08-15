@@ -23,7 +23,7 @@ A GitHub composite action that uploads a FiveM resource to the [Cfx.re Portal](h
     github_token: ${{ secrets.GITHUB_TOKEN }}
     cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
     cfx_asset_id: ${{ vars.CFX_ASSET_ID }}
-    github_pat: ${{ secrets.GITHUB_PAT }}
+    github_pat: ${{ secrets.GH_PAT }}
 ```
 
 **Lua-only resource** (fxmanifest.lua is in the repo root):
@@ -36,7 +36,7 @@ A GitHub composite action that uploads a FiveM resource to the [Cfx.re Portal](h
     github_token: ${{ secrets.GITHUB_TOKEN }}
     cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
     cfx_asset_id: ${{ vars.CFX_ASSET_ID }}
-    github_pat: ${{ secrets.GITHUB_PAT }}
+    github_pat: ${{ secrets.GH_PAT }}
 ```
 
 > `resource_dir` must point to the folder that contains `fxmanifest.lua`. For repos where the manifest lives at the root, use `${{ github.workspace }}`. For repos that compile or copy files into a subdirectory first, point to that subdirectory instead (e.g. `${{ github.workspace }}/dist`).
@@ -55,7 +55,7 @@ A GitHub composite action that uploads a FiveM resource to the [Cfx.re Portal](h
 | `cfx_totp_secret` | | Base32 TOTP secret of the account's authenticator (`secrets.CFX_TOTP_SECRET`) — required for email login when 2FA is enabled |
 | `cfx_imap_credentials` | | JSON `{"host","user","password","port"}` for the account's mailbox (`secrets.CFX_IMAP_CREDENTIALS`) — enables automatic recovery from the new-device block |
 | `cfx_email_login_url` | | Manual fallback: one-time "Log in via link" URL from the Cfx forum email — see [New device/location block](#new-devicelocation-block) |
-| `github_pat` | | PAT with `repo` + `actions:write` scope — used to save `CFX_ASSET_ID` (variable) and `CFX_SESSION_COOKIE` (secret) |
+| `github_pat` | | PAT (`secrets.GH_PAT`, fine-grained: Secrets + Variables read/write) — used to save `CFX_ASSET_ID` (variable) and `CFX_SESSION_COOKIE` (secret) |
 
 ## First-time setup
 
@@ -94,7 +94,7 @@ bun run setup-session your-org/your-repo [more/repos ...]
 
 The repo arguments are optional: with them the script sets secret `CFX_SESSION_COOKIE` on each repo directly (requires an authenticated `gh` CLI); without them it prints the captured cookie with a ready-made `gh secret set` command to run yourself.
 
-Also add a PAT with `repo` + `actions:write` scope as secret `GITHUB_PAT`. It lets the action save `CFX_ASSET_ID` (skips asset discovery) and write the rotated session cookie back to `CFX_SESSION_COOKIE` after every run, keeping the session alive indefinitely.
+Also add a PAT as secret `GH_PAT`: a fine-grained token with **Secrets: read and write** + **Variables: read and write**, or a classic token with `repo` scope. It lets the action save `CFX_ASSET_ID` (skips asset discovery) and write the rotated session cookie back to `CFX_SESSION_COOKIE` after every run, keeping the session alive indefinitely.
 
 ### 4. Optional: automatic recovery secrets
 

@@ -31,7 +31,7 @@ jobs:
         with:
           mode: keepalive
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          github_pat: ${{ secrets.GITHUB_PAT }}
+          github_pat: ${{ secrets.GH_PAT }}
           cfx_session_cookie: ${{ secrets.CFX_SESSION_COOKIE }}
           # Optional: self-healing when the session died
           cfx_passkey_credential: ${{ secrets.CFX_PASSKEY_CREDENTIAL }}
